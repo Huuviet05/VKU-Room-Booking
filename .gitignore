@@ -3,8 +3,9 @@
 # dependencies
 node_modules/
 
-# Expo
+# Expo & Firebase
 .expo/
+.firebase/
 dist/
 web-build/
 expo-env.d.ts

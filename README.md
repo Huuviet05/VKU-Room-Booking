@@ -12,6 +12,9 @@
 
 *Sản phẩm Mini-Project 2 - Môn Lập trình Ứng dụng Di động Đa nền tảng (Mobile Cross-Platform Development)*
 
+[![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-Firebase_Hosting-0284C7?style=for-the-badge)](https://vku-room-booking-b10e7.web.app)
+[![Vercel Demo](https://img.shields.io/badge/▲_Vercel_Mirror-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vku-room-booking-eight.vercel.app/)
+
 </div>
 
 ---
