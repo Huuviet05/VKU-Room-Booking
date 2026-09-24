@@ -1,9 +1,10 @@
 // src/screens/ProfileScreen.tsx
 import React from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../hooks/useAuth';
+import { appNotify } from '../store/useNotificationStore';
 
 interface StatCardProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -51,11 +52,27 @@ export default function ProfileScreen() {
   const shortId = uid ? uid.slice(0, 8).toUpperCase() : '--------';
 
   const handleAbout = () => {
-    Alert.alert(
-      'VKU Room Booking',
-      'Phiên bản 1.0.0\nPhát triển bởi sinh viên VKU\nKhoa Công nghệ thông tin\nMôn: Lập trình đa nền tảng',
-      [{ text: 'OK' }]
-    );
+    appNotify.alert({
+      type: 'info',
+      title: 'VKU Room Booking',
+      message: 'Ứng dụng quản lý & mượn phòng học thông minh dành cho sinh viên trường Đại học CNTT & TT Việt - Hàn (VKU).',
+      details: {
+        roomName: 'Nguyễn Hữu Việt (23IT309)',
+        building: 'Khoa Công nghệ Thông tin',
+        timeRange: 'Học phần: Lập trình đa nền tảng',
+        date: 'Phiên bản v1.0.0 · Expo SDK 57',
+      },
+      buttons: [{ text: 'Đóng', style: 'primary' }],
+    });
+  };
+
+  const handleGuide = () => {
+    appNotify.alert({
+      type: 'info',
+      title: 'Quy trình mượn phòng VKU',
+      message: '1. Tra cứu phòng học theo khu A, V, hoặc tiện ích mong muốn.\n2. Chọn các khung giờ rảnh trong ngày hôm nay.\n3. Nhấn "Đặt phòng ngay" và xác nhận.\n4. Theo dõi và hủy phòng thuận tiện tại tab "Lịch của tôi".',
+      buttons: [{ text: 'Đã hiểu', style: 'primary' }],
+    });
   };
 
   return (
@@ -119,13 +136,13 @@ export default function ProfileScreen() {
             <MenuItem
               icon="notifications-outline"
               label="Thông báo"
-              onPress={() => Alert.alert('Thông báo', 'Tính năng đang phát triển')}
+              onPress={() => appNotify.toast('Tính năng nhận thông báo đẩy đang được phát triển', 'info')}
             />
             <View style={styles.menuDivider} />
             <MenuItem
               icon="help-circle-outline"
               label="Hướng dẫn sử dụng"
-              onPress={() => Alert.alert('Hướng dẫn', 'Tìm phòng → Chọn giờ → Đặt phòng → Xem lịch!')}
+              onPress={handleGuide}
             />
             <View style={styles.menuDivider} />
             <MenuItem

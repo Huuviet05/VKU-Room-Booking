@@ -19,6 +19,7 @@ import { useAuth } from '../hooks/useAuth';
 import TimeSlotPicker from '../components/TimeSlotPicker';
 import StatusBadge from '../components/StatusBadge';
 import { RootStackParamList } from '../navigation/AppNavigator';
+import { appNotify } from '../store/useNotificationStore';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'RoomDetail'>;
@@ -96,7 +97,6 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [existingBookings, setExistingBookings] = useState<Booking[]>([]);
   const [booking, setBooking] = useState(false);
-  const [confirmVisible, setConfirmVisible] = useState(false);
   const today = getTodayString();
 
   // Real-time bookings cho phòng này hôm nay
@@ -125,13 +125,34 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
     };
   };
 
+  const promptBookingConfirm = () => {
+    if (selectedSlots.length === 0) return;
+    const r = getTimeRange();
+    if (!r) return;
+
+    appNotify.alert({
+      type: 'warning',
+      title: 'Xác nhận đặt phòng',
+      message: 'Vui lòng kiểm tra lại thông tin mượn phòng học trước khi gửi yêu cầu:',
+      details: {
+        roomName: room.name,
+        building: room.building,
+        timeRange: `${r.start} → ${r.end}`,
+        date: today,
+      },
+      buttons: [
+        { text: 'Kiểm tra lại', style: 'cancel' },
+        { text: 'Xác nhận đặt', style: 'primary', onPress: handleBook },
+      ],
+    });
+  };
+
   const handleBook = async () => {
     if (!uid || selectedSlots.length === 0) return;
     const range = getTimeRange();
     if (!range) return;
 
     setBooking(true);
-    setConfirmVisible(false);
     try {
       await createBooking({
         roomId: room.id,
@@ -145,23 +166,36 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
       });
       setSelectedSlots([]);
 
-      const msg = `Phòng: ${room.name}\nThời gian: ${range.start} → ${range.end}`;
-      if (Platform.OS === 'web') {
-        window.alert(`✅ Đặt phòng thành công!\n\n${msg}`);
-        navigation.goBack();
-      } else {
-        Alert.alert('✅ Đặt phòng thành công!', msg, [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
-      }
+      appNotify.alert({
+        type: 'success',
+        title: 'Đặt phòng thành công! 🎉',
+        message: 'Lịch mượn phòng học đã được cập nhật thành công vào hệ thống VKU.',
+        details: {
+          roomName: room.name,
+          building: room.building,
+          timeRange: `${range.start} → ${range.end}`,
+          date: today,
+        },
+        buttons: [
+          {
+            text: 'Về danh sách',
+            style: 'cancel',
+            onPress: () => navigation.goBack(),
+          },
+          {
+            text: 'Xem lịch đã đặt',
+            style: 'primary',
+            onPress: () => {
+              navigation.goBack();
+              (navigation as any).navigate('MainTabs', { screen: 'MyBookings' });
+            },
+          },
+        ],
+      });
     } catch (err: any) {
       console.error('Booking error:', err);
       const errMsg = err?.message || 'Đặt phòng thất bại. Vui lòng thử lại.';
-      if (Platform.OS === 'web') {
-        window.alert(`❌ Lỗi: ${errMsg}`);
-      } else {
-        Alert.alert('Lỗi', errMsg);
-      }
+      appNotify.error('Không thể đặt phòng', errMsg);
     } finally {
       setBooking(false);
     }
@@ -261,32 +295,9 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
           range={range}
           selectedCount={selectedSlots.length}
           loading={booking}
-          onPress={() => selectedSlots.length > 0 && setConfirmVisible(true)}
+          onPress={promptBookingConfirm}
         />
       )}
-
-      {/* Confirm Modal */}
-      <Modal visible={confirmVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Xác nhận đặt phòng</Text>
-            <View style={styles.modalInfo}>
-              <Text style={styles.modalRoom}>{room.name}</Text>
-              <Text style={styles.modalDetail}>📍 {room.building}</Text>
-              <Text style={styles.modalDetail}>📅 {today}</Text>
-              {range && <Text style={styles.modalDetail}>🕐 {range.start} → {range.end}</Text>}
-            </View>
-            <View style={styles.modalActions}>
-              <Pressable style={styles.cancelBtn} onPress={() => setConfirmVisible(false)}>
-                <Text style={styles.cancelText}>Hủy</Text>
-              </Pressable>
-              <Pressable style={styles.confirmBtn} onPress={handleBook}>
-                <Text style={styles.confirmText}>Xác nhận</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }

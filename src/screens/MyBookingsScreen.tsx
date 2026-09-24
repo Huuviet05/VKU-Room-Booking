@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, SectionList, StyleSheet,
-  Alert, ActivityIndicator, Platform,
+  Alert, ActivityIndicator, Platform, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +21,7 @@ import { Booking } from '../types';
 import { subscribeToUserBookings, cancelBooking } from '../services/bookingService';
 import { useAuth } from '../hooks/useAuth';
 import EmptyState from '../components/EmptyState';
+import { appNotify } from '../store/useNotificationStore';
 
 // ----- SwipeToCancel BookingCard -----
 function BookingCard({
@@ -38,20 +39,35 @@ function BookingCard({
   const translateX = useSharedValue(0);
   const cardOpacity = useSharedValue(1);
 
-  // Hàm chạy trên JS thread sau khi swipe xong
+  // Hàm hiển thị xác nhận hủy phòng với phong cách riêng của VKU
   const triggerCancel = () => {
-    if (Platform.OS === 'web') {
-      if (window.confirm(`Hủy đặt phòng ${booking.roomName}?`)) onCancel();
-    } else {
-      Alert.alert(
-        'Hủy đặt phòng',
-        `Xác nhận hủy đặt phòng ${booking.roomName}?`,
-        [
-          { text: 'Không', style: 'cancel', onPress: () => { translateX.value = withSpring(0); } },
-          { text: 'Hủy đặt', style: 'destructive', onPress: onCancel },
-        ]
-      );
-    }
+    appNotify.alert({
+      type: 'warning',
+      title: 'Hủy lịch đặt phòng?',
+      message: 'Bạn có chắc chắn muốn hủy lịch mượn phòng này? Khung giờ sẽ được giải phóng cho sinh viên khác.',
+      details: {
+        roomName: booking.roomName,
+        timeRange: `${booking.startTime} → ${booking.endTime}`,
+        date: booking.date,
+      },
+      buttons: [
+        {
+          text: 'Giữ lại',
+          style: 'cancel',
+          onPress: () => {
+            translateX.value = withSpring(0);
+          },
+        },
+        {
+          text: 'Hủy phòng ngay',
+          style: 'destructive',
+          onPress: () => {
+            onCancel();
+            appNotify.toast('Đã hủy lịch đặt phòng thành công', 'info');
+          },
+        },
+      ],
+    });
     translateX.value = withSpring(0);
   };
 
@@ -116,10 +132,19 @@ function BookingCard({
           </View>
 
           {isUpcoming && (
-            <View style={styles.swipeHint}>
-              <Ionicons name="arrow-back-outline" size={14} color="#CBD5E1" />
-              <Text style={styles.swipeHintText}>Vuốt để hủy</Text>
-            </View>
+            <Pressable
+              onPress={triggerCancel}
+              style={({ pressed }) => [
+                styles.swipeHint,
+                pressed && { opacity: 0.7 },
+              ]}
+              hitSlop={8}
+            >
+              <Ionicons name="trash-outline" size={13} color="#EF4444" />
+              <Text style={[styles.swipeHintText, { color: '#EF4444', fontWeight: '600' }]}>
+                {Platform.OS === 'web' ? 'Hủy phòng' : 'Vuốt để hủy'}
+              </Text>
+            </Pressable>
           )}
           {!isUpcoming && (
             <View style={[styles.statusBadge, {

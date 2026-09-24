@@ -6,6 +6,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { seedRoomsIfEmpty } from './src/services/roomService';
 import AppNavigator from './src/navigation/AppNavigator';
+import CustomAlertModal from './src/components/CustomAlertModal';
+import CustomToast from './src/components/CustomToast';
 
 // Seed data khi app khởi động lần đầu
 seedRoomsIfEmpty();
@@ -25,6 +27,9 @@ export default function App() {
       <SafeAreaProvider>
         <StatusBar style="dark" />
         <AppNavigator />
+        {/* Custom Notifications with VKU Branding */}
+        <CustomAlertModal />
+        <CustomToast />
       </SafeAreaProvider>
     </QueryClientProvider>
   );
