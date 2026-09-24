@@ -187,7 +187,12 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
             style: 'primary',
             onPress: () => {
               navigation.goBack();
-              (navigation as any).navigate('MainTabs', { screen: 'MyBookings' });
+              const parent = navigation.getParent();
+              if (parent) {
+                (parent as any).navigate('BookingsTab');
+              } else {
+                (navigation as any).navigate('BookingsTab');
+              }
             },
           },
         ],
