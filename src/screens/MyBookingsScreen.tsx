@@ -1,62 +1,144 @@
 // src/screens/MyBookingsScreen.tsx
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, SectionList, StyleSheet, Pressable,
-  Alert, ActivityIndicator,
+  View, Text, SectionList, StyleSheet,
+  Alert, ActivityIndicator, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  runOnJS,
+  FadeInRight,
+  FadeOutLeft,
+} from 'react-native-reanimated';
 
 import { Booking } from '../types';
 import { subscribeToUserBookings, cancelBooking } from '../services/bookingService';
 import { useAuth } from '../hooks/useAuth';
 import EmptyState from '../components/EmptyState';
 
-function BookingCard({ booking, onCancel }: { booking: Booking; onCancel: () => void }) {
+// ----- SwipeToCancel BookingCard -----
+function BookingCard({
+  booking,
+  onCancel,
+  index,
+}: {
+  booking: Booking;
+  onCancel: () => void;
+  index: number;
+}) {
   const isUpcoming = booking.status === 'upcoming';
   const isCancelled = booking.status === 'cancelled';
 
+  const translateX = useSharedValue(0);
+  const cardOpacity = useSharedValue(1);
+
+  // Hàm chạy trên JS thread sau khi swipe xong
+  const triggerCancel = () => {
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Hủy đặt phòng ${booking.roomName}?`)) onCancel();
+    } else {
+      Alert.alert(
+        'Hủy đặt phòng',
+        `Xác nhận hủy đặt phòng ${booking.roomName}?`,
+        [
+          { text: 'Không', style: 'cancel', onPress: () => { translateX.value = withSpring(0); } },
+          { text: 'Hủy đặt', style: 'destructive', onPress: onCancel },
+        ]
+      );
+    }
+    translateX.value = withSpring(0);
+  };
+
+  // Pan gesture (Swipe left to cancel) — chạy trên native thread
+  const pan = Gesture.Pan()
+    .enabled(isUpcoming)
+    .activeOffsetX([-10, 10])
+    .onUpdate((e) => {
+      // Chỉ cho phép vuốt sang trái (giá trị âm)
+      translateX.value = Math.min(0, e.translationX);
+    })
+    .onEnd((e) => {
+      if (e.translationX < -100) {
+        // Vuốt đủ xa → gọi hủy trên JS thread
+        runOnJS(triggerCancel)();
+      } else {
+        translateX.value = withSpring(0);
+      }
+    });
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+    opacity: cardOpacity.value,
+  }));
+
+  // Màu indicator dọc theo trạng thái
+  const indicatorColor = isUpcoming ? '#4F46E5' : isCancelled ? '#94A3B8' : '#22C55E';
+
   return (
-    <View style={[styles.bookingCard, isCancelled && styles.cardCancelled]}>
-      <View style={styles.bookingLeft}>
-        <View style={[styles.statusLine, {
-          backgroundColor: isUpcoming ? '#4F46E5' : isCancelled ? '#94A3B8' : '#22C55E',
-        }]} />
-        <View style={styles.bookingInfo}>
-          <Text style={styles.bookingRoom} numberOfLines={1}>{booking.roomName}</Text>
-          <Text style={styles.bookingBuilding}>{booking.roomBuilding}</Text>
-          <View style={styles.bookingMeta}>
-            <Ionicons name="calendar-outline" size={12} color="#64748B" />
-            <Text style={styles.bookingMetaText}>{booking.date}</Text>
-            <Ionicons name="time-outline" size={12} color="#64748B" />
-            <Text style={styles.bookingMetaText}>{booking.startTime} → {booking.endTime}</Text>
-          </View>
-        </View>
-      </View>
+    <Animated.View
+      entering={FadeInRight.delay(index * 60).springify()}
+      style={{ overflow: 'hidden' }}
+    >
+      {/* Background hint khi đang vuốt trái */}
       {isUpcoming && (
-        <Pressable
-          style={styles.cancelBtn}
-          onPress={onCancel}
-          hitSlop={8}
-        >
-          <Ionicons name="close-circle-outline" size={22} color="#EF4444" />
-        </Pressable>
-      )}
-      {!isUpcoming && (
-        <View style={[styles.statusBadge, {
-          backgroundColor: isCancelled ? '#F1F5F9' : '#DCFCE7',
-        }]}>
-          <Text style={[styles.statusBadgeText, {
-            color: isCancelled ? '#94A3B8' : '#15803D',
-          }]}>
-            {isCancelled ? 'Đã hủy' : 'Hoàn thành'}
-          </Text>
+        <View style={styles.swipeBg}>
+          <Ionicons name="trash-outline" size={22} color="#FFFFFF" />
+          <Text style={styles.swipeBgText}>Hủy đặt</Text>
         </View>
       )}
-    </View>
+
+      <GestureDetector gesture={pan}>
+        <Animated.View
+          style={[
+            styles.bookingCard,
+            isCancelled && styles.cardCancelled,
+            cardStyle,
+          ]}
+        >
+          <View style={styles.bookingLeft}>
+            <View style={[styles.statusLine, { backgroundColor: indicatorColor }]} />
+            <View style={styles.bookingInfo}>
+              <Text style={styles.bookingRoom} numberOfLines={1}>{booking.roomName}</Text>
+              <Text style={styles.bookingBuilding}>{booking.roomBuilding}</Text>
+              <View style={styles.bookingMeta}>
+                <Ionicons name="calendar-outline" size={12} color="#64748B" />
+                <Text style={styles.bookingMetaText}>{booking.date}</Text>
+                <Ionicons name="time-outline" size={12} color="#64748B" />
+                <Text style={styles.bookingMetaText}>{booking.startTime} → {booking.endTime}</Text>
+              </View>
+            </View>
+          </View>
+
+          {isUpcoming && (
+            <View style={styles.swipeHint}>
+              <Ionicons name="arrow-back-outline" size={14} color="#CBD5E1" />
+              <Text style={styles.swipeHintText}>Vuốt để hủy</Text>
+            </View>
+          )}
+          {!isUpcoming && (
+            <View style={[styles.statusBadge, {
+              backgroundColor: isCancelled ? '#F1F5F9' : '#DCFCE7',
+            }]}>
+              <Text style={[styles.statusBadgeText, {
+                color: isCancelled ? '#94A3B8' : '#15803D',
+              }]}>
+                {isCancelled ? 'Đã hủy' : 'Hoàn thành'}
+              </Text>
+            </View>
+          )}
+        </Animated.View>
+      </GestureDetector>
+    </Animated.View>
   );
 }
 
+// ----- Main Screen -----
 export default function MyBookingsScreen() {
   const { uid, loading: authLoading } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -71,19 +153,8 @@ export default function MyBookingsScreen() {
     return unsubscribe;
   }, [uid]);
 
-  const handleCancel = (bookingId: string, roomName: string) => {
-    Alert.alert(
-      'Hủy đặt phòng',
-      `Bạn có chắc muốn hủy đặt phòng ${roomName}?`,
-      [
-        { text: 'Không', style: 'cancel' },
-        {
-          text: 'Hủy đặt phòng',
-          style: 'destructive',
-          onPress: () => cancelBooking(bookingId),
-        },
-      ]
-    );
+  const handleCancel = (bookingId: string) => {
+    cancelBooking(bookingId);
   };
 
   const today = new Date().toISOString().split('T')[0];
@@ -109,40 +180,43 @@ export default function MyBookingsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Đặt phòng của tôi</Text>
-        <Text style={styles.subtitle}>{bookings.length} lần đặt phòng</Text>
-      </View>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Đặt phòng của tôi</Text>
+          <Text style={styles.subtitle}>{bookings.length} lần đặt phòng</Text>
+        </View>
 
-      {bookings.length === 0 ? (
-        <EmptyState
-          icon="calendar-outline"
-          title="Chưa có đặt phòng nào"
-          subtitle="Hãy tìm phòng học phù hợp và đặt ngay nhé!"
-        />
-      ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <BookingCard
-              booking={item}
-              onCancel={() => handleCancel(item.id, item.roomName)}
-            />
-          )}
-          renderSectionHeader={({ section: { title, data } }) => (
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{title}</Text>
-              <Text style={styles.sectionCount}>{data.length}</Text>
-            </View>
-          )}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          stickySectionHeadersEnabled={false}
-        />
-      )}
-    </SafeAreaView>
+        {bookings.length === 0 ? (
+          <EmptyState
+            icon="calendar-outline"
+            title="Chưa có đặt phòng nào"
+            subtitle="Hãy tìm phòng học phù hợp và đặt ngay nhé!"
+          />
+        ) : (
+          <SectionList
+            sections={sections}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item, index }) => (
+              <BookingCard
+                booking={item}
+                index={index}
+                onCancel={() => handleCancel(item.id)}
+              />
+            )}
+            renderSectionHeader={({ section: { title, data } }) => (
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>{title}</Text>
+                <Text style={styles.sectionCount}>{data.length}</Text>
+              </View>
+            )}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            stickySectionHeadersEnabled={false}
+          />
+        )}
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -152,7 +226,7 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 16 },
   title: { fontSize: 26, fontWeight: '800', color: '#0F172A' },
   subtitle: { fontSize: 13, color: '#64748B', marginTop: 2 },
-  listContent: { paddingHorizontal: 16, paddingBottom: 32, gap: 8 },
+  listContent: { paddingHorizontal: 16, paddingBottom: 32, gap: 10 },
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 10, marginTop: 8,
@@ -162,6 +236,22 @@ const styles = StyleSheet.create({
     fontSize: 12, fontWeight: '700', color: '#4F46E5',
     backgroundColor: '#EEF2FF', paddingHorizontal: 8, paddingVertical: 3,
     borderRadius: 10,
+  },
+  // Nền đỏ lộ ra khi vuốt trái
+  swipeBg: {
+    position: 'absolute',
+    right: 0, top: 0, bottom: 0,
+    width: 100,
+    backgroundColor: '#EF4444',
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  swipeBgText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
   bookingCard: {
     flexDirection: 'row', alignItems: 'center',
@@ -178,7 +268,8 @@ const styles = StyleSheet.create({
   bookingBuilding: { fontSize: 12, color: '#64748B' },
   bookingMeta: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
   bookingMetaText: { fontSize: 12, color: '#64748B' },
-  cancelBtn: { padding: 4 },
+  swipeHint: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 8 },
+  swipeHintText: { fontSize: 10, color: '#CBD5E1' },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
   statusBadgeText: { fontSize: 11, fontWeight: '700' },
 });

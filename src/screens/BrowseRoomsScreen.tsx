@@ -67,9 +67,10 @@ export default function BrowseRoomsScreen({ navigation }: Props) {
     filters.minCapacity > 0 ||
     filters.statusFilter !== 'all';
 
-  const renderRoom = ({ item }: { item: Room }) => (
+  const renderRoom = ({ item, index }: { item: Room; index: number }) => (
     <RoomCard
       room={item}
+      index={index}
       cardWidth={columns > 1 ? cardWidth : undefined}
       onPress={() => navigation.navigate('RoomDetail', { room: item })}
     />

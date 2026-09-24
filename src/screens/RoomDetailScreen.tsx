@@ -7,6 +7,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, {
+  useSharedValue, useAnimatedStyle, withSpring,
+} from 'react-native-reanimated';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 
@@ -33,6 +36,57 @@ const AMENITY_INFO: Record<string, { icon: string; label: string }> = {
 
 function getTodayString(): string {
   return new Date().toISOString().split('T')[0];
+}
+
+// ----- Animated Book Button (Week 6: spring scale trên UI thread) -----
+interface BookButtonProps {
+  range: { start: string; end: string } | null;
+  selectedCount: number;
+  loading: boolean;
+  onPress: () => void;
+}
+
+function BookButton({ range, selectedCount, loading, onPress }: BookButtonProps) {
+  const scale = useSharedValue(1);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  return (
+    <View style={styles.bookingBar}>
+      {range && (
+        <View style={styles.rangeInfo}>
+          <Text style={styles.rangeLabel}>Đã chọn</Text>
+          <Text style={styles.rangeValue}>{range.start} → {range.end}</Text>
+        </View>
+      )}
+      <Pressable
+        onPressIn={() => { if (selectedCount > 0) scale.value = withSpring(0.95, { damping: 15 }); }}
+        onPressOut={() => { scale.value = withSpring(1, { damping: 15 }); }}
+        onPress={onPress}
+        disabled={selectedCount === 0 || loading}
+        style={{ flex: 1 }}
+      >
+        <Animated.View style={[
+          styles.bookBtn,
+          selectedCount === 0 && styles.bookBtnDisabled,
+          animStyle,
+        ]}>
+          {loading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <>
+              <Ionicons name="calendar-outline" size={18} color="#fff" />
+              <Text style={styles.bookBtnText}>
+                {selectedCount === 0 ? 'Chọn khung giờ' : 'Đặt phòng ngay'}
+              </Text>
+            </>
+          )}
+        </Animated.View>
+      </Pressable>
+    </View>
+  );
 }
 
 export default function RoomDetailScreen({ navigation, route }: Props) {
@@ -201,36 +255,14 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
         </View>
       </ScrollView>
 
-      {/* Book button */}
+      {/* Book button — Animated spring scale (UI thread, chạy ở 60/120fps) */}
       {room.status === 'available' && (
-        <View style={styles.bookingBar}>
-          {range && (
-            <View style={styles.rangeInfo}>
-              <Text style={styles.rangeLabel}>Đã chọn</Text>
-              <Text style={styles.rangeValue}>{range.start} → {range.end}</Text>
-            </View>
-          )}
-          <Pressable
-            style={({ pressed }) => [
-              styles.bookBtn,
-              selectedSlots.length === 0 && styles.bookBtnDisabled,
-              pressed && selectedSlots.length > 0 && styles.bookBtnPressed,
-            ]}
-            onPress={() => selectedSlots.length > 0 && setConfirmVisible(true)}
-            disabled={selectedSlots.length === 0 || booking}
-          >
-            {booking ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <>
-                <Ionicons name="calendar-outline" size={18} color="#fff" />
-                <Text style={styles.bookBtnText}>
-                  {selectedSlots.length === 0 ? 'Chọn khung giờ' : 'Đặt phòng ngay'}
-                </Text>
-              </>
-            )}
-          </Pressable>
-        </View>
+        <BookButton
+          range={range}
+          selectedCount={selectedSlots.length}
+          loading={booking}
+          onPress={() => selectedSlots.length > 0 && setConfirmVisible(true)}
+        />
       )}
 
       {/* Confirm Modal */}
