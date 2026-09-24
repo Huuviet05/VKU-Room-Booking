@@ -8,6 +8,8 @@ import { appNotify } from '../store/useNotificationStore';
 import { Booking } from '../types';
 import { subscribeToUserBookings } from '../services/bookingService';
 import { getBookingEffectiveStatus, calculateBookingHours } from '../utils/bookingLogic';
+import { useNotificationCenterStore } from '../store/useNotificationCenterStore';
+import NotificationModal from '../components/NotificationModal';
 
 interface StatCardProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -32,8 +34,9 @@ interface MenuItemProps {
   label: string;
   onPress: () => void;
   destructive?: boolean;
+  badge?: number;
 }
-function MenuItem({ icon, label, onPress, destructive }: MenuItemProps) {
+function MenuItem({ icon, label, onPress, destructive, badge }: MenuItemProps) {
   return (
     <Pressable
       style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
@@ -43,6 +46,11 @@ function MenuItem({ icon, label, onPress, destructive }: MenuItemProps) {
         <Ionicons name={icon} size={18} color={destructive ? '#EF4444' : '#475569'} />
       </View>
       <Text style={[styles.menuLabel, destructive && { color: '#EF4444' }]}>{label}</Text>
+      {Boolean(badge && badge > 0) && (
+        <View style={styles.menuBadge}>
+          <Text style={styles.menuBadgeText}>{badge}</Text>
+        </View>
+      )}
       {!destructive && (
         <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
       )}
@@ -54,6 +62,10 @@ export default function ProfileScreen() {
   const { uid } = useAuth();
   const shortId = uid ? uid.slice(0, 8).toUpperCase() : '--------';
   const [userBookings, setUserBookings] = useState<Booking[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  const { notifications } = useNotificationCenterStore();
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   // Lắng nghe dữ liệu booking thời gian thực của user
   useEffect(() => {
@@ -102,6 +114,22 @@ export default function ProfileScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.profileHeader}>
+          <View style={styles.profileHeaderTopRow}>
+            <View style={{ flex: 1 }} />
+            <Pressable
+              style={styles.bellHeaderBtn}
+              onPress={() => setShowNotifications(true)}
+              hitSlop={10}
+            >
+              <Ionicons name="notifications-outline" size={20} color="#1E293B" />
+              {unreadCount > 0 && (
+                <View style={styles.bellHeaderBadge}>
+                  <Text style={styles.bellHeaderBadgeText}>{unreadCount}</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+
           <View style={styles.avatarWrap}>
             <View style={styles.avatar}>
               <Ionicons name="person" size={40} color="#FFFFFF" />
@@ -183,7 +211,8 @@ export default function ProfileScreen() {
             <MenuItem
               icon="notifications-outline"
               label="Thông báo"
-              onPress={() => appNotify.toast('Tính năng nhận thông báo đẩy đang được phát triển', 'info')}
+              badge={unreadCount}
+              onPress={() => setShowNotifications(true)}
             />
             <View style={styles.menuDivider} />
             <MenuItem
@@ -214,6 +243,12 @@ export default function ProfileScreen() {
 
         <View style={{ height: 32 }} />
       </ScrollView>
+
+      {/* Trung tâm thông báo chuyên nghiệp */}
+      <NotificationModal
+        visible={showNotifications}
+        onClose={() => setShowNotifications(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -221,9 +256,61 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
   profileHeader: {
-    alignItems: 'center', paddingTop: 24, paddingBottom: 24,
+    alignItems: 'center', paddingTop: 12, paddingBottom: 24,
     paddingHorizontal: 20,
     backgroundColor: '#FAFAFA',
+  },
+  profileHeaderTopRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 6,
+  },
+  bellHeaderBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  bellHeaderBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#EF4444',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  bellHeaderBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  menuBadge: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginRight: 4,
+  },
+  menuBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
   },
   avatarWrap: { position: 'relative', marginBottom: 14 },
   avatar: {

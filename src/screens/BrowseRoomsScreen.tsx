@@ -9,6 +9,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Platform,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -23,6 +24,8 @@ import SearchBar from '../components/SearchBar';
 import FilterChips from '../components/FilterChips';
 import DateSelectorStrip from '../components/DateSelectorStrip';
 import EmptyState from '../components/EmptyState';
+import NotificationModal from '../components/NotificationModal';
+import { useNotificationCenterStore } from '../store/useNotificationCenterStore';
 import { RootStackParamList } from '../navigation/AppNavigator';
 
 type Props = {
@@ -33,6 +36,10 @@ export default function BrowseRoomsScreen({ navigation }: Props) {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  const { notifications } = useNotificationCenterStore();
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const {
     filters,
@@ -137,6 +144,19 @@ export default function BrowseRoomsScreen({ navigation }: Props) {
             <View style={styles.badgeLiveDot} />
             <Text style={styles.badgeLiveText}>{availableCount} phòng trống</Text>
           </View>
+
+          <Pressable
+            style={styles.bellBtn}
+            onPress={() => setShowNotifications(true)}
+            hitSlop={8}
+          >
+            <Ionicons name="notifications-outline" size={17} color="#475569" />
+            {unreadCount > 0 && (
+              <View style={styles.bellBadge}>
+                <Text style={styles.bellBadgeText}>{unreadCount}</Text>
+              </View>
+            )}
+          </Pressable>
         </View>
 
         <Text style={styles.mainTitle}>Khám phá phòng học</Text>
@@ -208,6 +228,12 @@ export default function BrowseRoomsScreen({ navigation }: Props) {
           }
         />
       )}
+
+      {/* Modal thông báo */}
+      <NotificationModal
+        visible={showNotifications}
+        onClose={() => setShowNotifications(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -268,6 +294,33 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#15803D',
+  },
+  bellBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#EF4444',
+    minWidth: 15,
+    height: 15,
+    borderRadius: 7.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  bellBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
   },
   mainTitle: {
     fontSize: 24,

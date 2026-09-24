@@ -70,3 +70,33 @@ export interface FilterState {
   minCapacity: number;
   statusFilter: RoomStatus | 'all';
 }
+
+export type NotificationType =
+  | 'booking_success'
+  | 'booking_reminder'
+  | 'booking_cancelled'
+  | 'campus_news';
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  timestamp: number; // ms
+  isRead: boolean;
+  data?: {
+    bookingId?: string;
+    roomId?: string;
+    roomName?: string;
+    date?: string;
+    timeRange?: string;
+  };
+}
+
+export interface NotificationPreferences {
+  bookingReminders: boolean;
+  bookingStatusChanges: boolean;
+  campusAnnouncements: boolean;
+  soundEnabled: boolean;
+}
+

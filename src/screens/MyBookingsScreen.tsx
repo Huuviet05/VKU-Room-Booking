@@ -25,6 +25,7 @@ import { subscribeToUserBookings, cancelBooking } from '../services/bookingServi
 import { useAuth } from '../hooks/useAuth';
 import EmptyState from '../components/EmptyState';
 import { appNotify } from '../store/useNotificationStore';
+import { useNotificationCenterStore } from '../store/useNotificationCenterStore';
 import {
   getBookingEffectiveStatus,
   canCancelBooking,
@@ -81,6 +82,7 @@ function BookingCard({
   const canCancel = canCancelBooking(booking);
   const statusCfg = STATUS_CONFIG[effectiveStatus];
 
+  const { addNotification } = useNotificationCenterStore();
   const translateX = useSharedValue(0);
 
   // Hiển thị hộp thoại xác nhận hủy lịch mượn phòng chuẩn VKU
@@ -107,6 +109,17 @@ function BookingCard({
           style: 'destructive',
           onPress: () => {
             onCancel();
+            addNotification({
+              type: 'booking_cancelled',
+              title: 'Đã hủy lịch mượn phòng 🗑️',
+              message: `Lịch mượn phòng ${booking.roomName} (${formatVietnameseDate(booking.date)} · ${booking.startTime} → ${booking.endTime}) đã được hủy thành công.`,
+              data: {
+                roomId: booking.roomId,
+                roomName: booking.roomName,
+                date: booking.date,
+                timeRange: `${booking.startTime} → ${booking.endTime}`,
+              },
+            });
             appNotify.toast('Đã hủy lịch đặt phòng thành công', 'info');
           },
         },

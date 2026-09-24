@@ -22,6 +22,7 @@ import DateSelectorStrip from '../components/DateSelectorStrip';
 import StatusBadge from '../components/StatusBadge';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { appNotify } from '../store/useNotificationStore';
+import { useNotificationCenterStore } from '../store/useNotificationCenterStore';
 import {
   isSlotInPast,
   getLocalDateString,
@@ -112,6 +113,7 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
   const { room, initialDate } = route.params;
   const { uid } = useAuth();
   const { filters, setSelectedDate: setStoreDate } = useAppStore();
+  const { addNotification } = useNotificationCenterStore();
 
   // Ngày mượn phòng được chọn (mặc định lấy từ param, store hoặc ngày hôm nay)
   const [selectedDate, setSelectedDate] = useState<string>(
@@ -228,6 +230,20 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
         purpose: purposeLabel,
         attendeesCount,
       });
+
+      // Tự động thêm thông báo vào Hộp thư thông báo của sinh viên
+      addNotification({
+        type: 'booking_success',
+        title: 'Đặt phòng thành công! 🎉',
+        message: `Bạn đã đặt thành công phòng ${room.name} (${room.building}) vào ngày ${formatVietnameseDate(selectedDate)} từ ${range.start} đến ${range.end}.`,
+        data: {
+          roomId: room.id,
+          roomName: `${room.name} (${room.building})`,
+          date: selectedDate,
+          timeRange: `${range.start} → ${range.end}`,
+        },
+      });
+
       setSelectedSlots([]);
 
       appNotify.alert({
