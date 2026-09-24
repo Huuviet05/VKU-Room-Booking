@@ -1,7 +1,7 @@
 // src/types/index.ts
 
 export type RoomStatus = 'available' | 'occupied' | 'maintenance';
-export type BookingStatus = 'upcoming' | 'completed' | 'cancelled';
+export type BookingStatus = 'upcoming' | 'in_progress' | 'completed' | 'cancelled';
 
 export type Amenity = 'projector' | 'ac' | 'whiteboard' | 'printer' | 'computer' | 'camera';
 

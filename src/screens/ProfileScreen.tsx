@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import { appNotify } from '../store/useNotificationStore';
 import { Booking } from '../types';
 import { subscribeToUserBookings } from '../services/bookingService';
+import { getBookingEffectiveStatus, calculateBookingHours } from '../utils/bookingLogic';
 
 interface StatCardProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -63,16 +64,14 @@ export default function ProfileScreen() {
     return unsubscribe;
   }, [uid]);
 
-  // Tính toán số liệu thống kê thực tế
-  const upcomingCount = userBookings.filter((b) => b.status === 'upcoming').length;
+  // Tính toán số liệu thống kê thực tế theo đúng dòng thời gian
+  const upcomingCount = userBookings.filter(
+    (b) => getBookingEffectiveStatus(b) === 'upcoming' || getBookingEffectiveStatus(b) === 'in_progress'
+  ).length;
   const totalBookings = userBookings.length;
   const totalHours = userBookings
-    .filter((b) => b.status !== 'cancelled')
-    .reduce((sum, b) => {
-      const startH = parseInt(b.startTime.split(':')[0], 10);
-      const endH = parseInt(b.endTime.split(':')[0], 10);
-      return sum + Math.max(0, endH - startH);
-    }, 0);
+    .filter((b) => getBookingEffectiveStatus(b) !== 'cancelled')
+    .reduce((sum, b) => sum + calculateBookingHours(b), 0);
 
   const handleAbout = () => {
     appNotify.alert({

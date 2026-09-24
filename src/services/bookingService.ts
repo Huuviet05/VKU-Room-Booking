@@ -42,16 +42,18 @@ export async function getRoomBookingsByDate(
   const q = query(
     collection(db, BOOKINGS_COLLECTION),
     where('roomId', '==', roomId),
-    where('date', '==', date),
-    where('status', '==', 'upcoming')
+    where('date', '==', date)
   );
 
   return onSnapshot(q, (snapshot) => {
-    const bookings = snapshot.docs.map((doc) => ({
-      ...doc.data(),
-      id: doc.id,
-    })) as Booking[];
-    callback(bookings);
+    const bookings = snapshot.docs
+      .map((doc) => ({
+        ...doc.data(),
+        id: doc.id,
+      })) as Booking[];
+    // Chỉ lấy các booking chưa bị hủy (bao gồm cả upcoming và in_progress)
+    const activeBookings = bookings.filter((b) => b.status !== 'cancelled');
+    callback(activeBookings);
   });
 }
 

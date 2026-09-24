@@ -20,6 +20,7 @@ import TimeSlotPicker from '../components/TimeSlotPicker';
 import StatusBadge from '../components/StatusBadge';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { appNotify } from '../store/useNotificationStore';
+import { isSlotInPast, getLocalDateString } from '../utils/bookingLogic';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'RoomDetail'>;
@@ -36,7 +37,7 @@ const AMENITY_INFO: Record<string, { icon: string; label: string }> = {
 };
 
 function getTodayString(): string {
-  return new Date().toISOString().split('T')[0];
+  return getLocalDateString();
 }
 
 // ----- Animated Book Button (Week 6: spring scale trên UI thread) -----
@@ -130,6 +131,15 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
     const r = getTimeRange();
     if (!r) return;
 
+    const firstHour = parseInt(r.start.split(':')[0], 10);
+    if (isSlotInPast(firstHour, today)) {
+      appNotify.error(
+        'Khung giờ không hợp lệ',
+        'Khung giờ bạn chọn đã trôi qua trong ngày hôm nay. Vui lòng chọn khung giờ trống tiếp theo.'
+      );
+      return;
+    }
+
     appNotify.alert({
       type: 'warning',
       title: 'Xác nhận đặt phòng',
@@ -151,6 +161,15 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
     if (!uid || selectedSlots.length === 0) return;
     const range = getTimeRange();
     if (!range) return;
+
+    const firstHour = parseInt(range.start.split(':')[0], 10);
+    if (isSlotInPast(firstHour, today)) {
+      appNotify.error(
+        'Khung giờ không hợp lệ',
+        'Khung giờ bạn chọn đã trôi qua. Vui lòng chọn khung giờ trống tiếp theo.'
+      );
+      return;
+    }
 
     setBooking(true);
     try {
@@ -286,6 +305,7 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
                 selectedSlots={selectedSlots}
                 onToggleSlot={handleToggleSlot}
                 existingBookings={existingBookings}
+                date={today}
               />
             </>
           )}
