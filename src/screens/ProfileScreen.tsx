@@ -1,10 +1,12 @@
 // src/screens/ProfileScreen.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../hooks/useAuth';
 import { appNotify } from '../store/useNotificationStore';
+import { Booking } from '../types';
+import { subscribeToUserBookings } from '../services/bookingService';
 
 interface StatCardProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -50,6 +52,27 @@ function MenuItem({ icon, label, onPress, destructive }: MenuItemProps) {
 export default function ProfileScreen() {
   const { uid } = useAuth();
   const shortId = uid ? uid.slice(0, 8).toUpperCase() : '--------';
+  const [userBookings, setUserBookings] = useState<Booking[]>([]);
+
+  // Lắng nghe dữ liệu booking thời gian thực của user
+  useEffect(() => {
+    if (!uid) return;
+    const unsubscribe = subscribeToUserBookings(uid, (data) => {
+      setUserBookings(data);
+    });
+    return unsubscribe;
+  }, [uid]);
+
+  // Tính toán số liệu thống kê thực tế
+  const upcomingCount = userBookings.filter((b) => b.status === 'upcoming').length;
+  const totalBookings = userBookings.length;
+  const totalHours = userBookings
+    .filter((b) => b.status !== 'cancelled')
+    .reduce((sum, b) => {
+      const startH = parseInt(b.startTime.split(':')[0], 10);
+      const endH = parseInt(b.endTime.split(':')[0], 10);
+      return sum + Math.max(0, endH - startH);
+    }, 0);
 
   const handleAbout = () => {
     appNotify.alert({
@@ -88,25 +111,50 @@ export default function ProfileScreen() {
               <Ionicons name="shield-checkmark" size={14} color="#4F46E5" />
             </View>
           </View>
-          <Text style={styles.userName}>Sinh viên VKU</Text>
-          <Text style={styles.userId}>ID: {shortId}</Text>
+          <Text style={styles.userName}>Nguyễn Hữu Việt</Text>
+          <Text style={styles.userId}>MSSV: 23IT309 · Phiên: {shortId}</Text>
           <View style={styles.anonBadge}>
             <Ionicons name="lock-closed-outline" size={12} color="#7C3AED" />
-            <Text style={styles.anonText}>Phiên ẩn danh · Dữ liệu riêng tư</Text>
+            <Text style={styles.anonText}>Dữ liệu đồng bộ Firebase Realtime</Text>
           </View>
         </View>
 
-        {/* Stats */}
+        {/* Stats - Dữ liệu thực tế được tính toán từ các lịch mượn phòng */}
         <View style={styles.statsContainer}>
-          <StatCard icon="calendar-outline" value="—" label="Đặt phòng" color="#4F46E5" />
-          <StatCard icon="time-outline" value="—" label="Giờ đã học" color="#0EA5E9" />
-          <StatCard icon="star-outline" value="VKU" label="Trường" color="#F59E0B" />
+          <StatCard
+            icon="calendar-outline"
+            value={totalBookings > 0 ? String(totalBookings) : '0'}
+            label="Lịch mượn"
+            color="#4F46E5"
+          />
+          <StatCard
+            icon="time-outline"
+            value={totalHours > 0 ? `${totalHours}h` : '0h'}
+            label="Giờ đã học"
+            color="#0EA5E9"
+          />
+          <StatCard
+            icon="checkmark-circle-outline"
+            value={upcomingCount > 0 ? String(upcomingCount) : '0'}
+            label="Sắp tới"
+            color="#10B981"
+          />
         </View>
 
         {/* Info */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Thông tin</Text>
+          <Text style={styles.sectionTitle}>Thông tin sinh viên</Text>
           <View style={styles.infoCard}>
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Sinh viên</Text>
+              <Text style={styles.infoValue}>Nguyễn Hữu Việt</Text>
+            </View>
+            <View style={styles.infoDivider} />
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Mã sinh viên</Text>
+              <Text style={styles.infoValue}>23IT309</Text>
+            </View>
+            <View style={styles.infoDivider} />
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Trường</Text>
               <Text style={styles.infoValue}>Đại học VKU</Text>
@@ -123,8 +171,8 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.infoDivider} />
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Tuần</Text>
-              <Text style={styles.infoValue}>Week 5 — React Native</Text>
+              <Text style={styles.infoLabel}>Tiến độ</Text>
+              <Text style={styles.infoValue}>Week 6 — State & Animations</Text>
             </View>
           </View>
         </View>
