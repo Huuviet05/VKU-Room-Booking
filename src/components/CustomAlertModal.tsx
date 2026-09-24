@@ -205,8 +205,32 @@ export default function CustomAlertModal() {
                   <Ionicons name="calendar" size={15} color="#059669" />
                 </View>
                 <View style={styles.detailTextWrapper}>
-                  <Text style={styles.detailLabel}>Ngày đặt</Text>
+                  <Text style={styles.detailLabel}>Ngày mượn</Text>
                   <Text style={styles.detailValue}>{alert.details.date}</Text>
+                </View>
+              </View>
+            )}
+
+            {alert.details.purpose && (
+              <View style={styles.detailRow}>
+                <View style={[styles.detailIconWrapper, { backgroundColor: '#F3E8FF' }]}>
+                  <Ionicons name="bookmark" size={15} color="#7C3AED" />
+                </View>
+                <View style={styles.detailTextWrapper}>
+                  <Text style={styles.detailLabel}>Mục đích</Text>
+                  <Text style={styles.detailValue}>{alert.details.purpose}</Text>
+                </View>
+              </View>
+            )}
+
+            {alert.details.attendees && (
+              <View style={styles.detailRow}>
+                <View style={[styles.detailIconWrapper, { backgroundColor: '#E0F2FE' }]}>
+                  <Ionicons name="people" size={15} color="#0284C7" />
+                </View>
+                <View style={styles.detailTextWrapper}>
+                  <Text style={styles.detailLabel}>Tham gia</Text>
+                  <Text style={styles.detailValue}>{alert.details.attendees}</Text>
                 </View>
               </View>
             )}

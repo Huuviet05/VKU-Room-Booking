@@ -1,8 +1,8 @@
 // src/screens/RoomDetailScreen.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  Alert, ActivityIndicator, Modal, Platform,
+  ActivityIndicator, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
@@ -16,11 +16,19 @@ import { RouteProp } from '@react-navigation/native';
 import { Booking } from '../types';
 import { createBooking, getRoomBookingsByDate } from '../services/bookingService';
 import { useAuth } from '../hooks/useAuth';
+import { useAppStore } from '../store/useAppStore';
 import TimeSlotPicker from '../components/TimeSlotPicker';
+import DateSelectorStrip from '../components/DateSelectorStrip';
 import StatusBadge from '../components/StatusBadge';
 import { RootStackParamList } from '../navigation/AppNavigator';
 import { appNotify } from '../store/useNotificationStore';
-import { isSlotInPast, getLocalDateString } from '../utils/bookingLogic';
+import {
+  isSlotInPast,
+  getLocalDateString,
+  formatVietnameseDate,
+  formatShortVietnameseDate,
+  BOOKING_PURPOSES,
+} from '../utils/bookingLogic';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'RoomDetail'>;
@@ -34,6 +42,10 @@ const AMENITY_INFO: Record<string, { icon: string; label: string }> = {
   printer: { icon: 'print-outline', label: 'Máy in' },
   computer: { icon: 'desktop-outline', label: 'Máy tính' },
   camera: { icon: 'videocam-outline', label: 'Camera' },
+  sound_system: { icon: 'volume-high-outline', label: 'Âm thanh' },
+  smart_board: { icon: 'laptop-outline', label: 'Bảng tương tác' },
+  wifi6: { icon: 'wifi-outline', label: 'Wi-Fi 6 tốc độ cao' },
+  vr_headset: { icon: 'glasses-outline', label: 'Kính VR/AR' },
 };
 
 function getTodayString(): string {
@@ -44,22 +56,27 @@ function getTodayString(): string {
 interface BookButtonProps {
   range: { start: string; end: string } | null;
   selectedCount: number;
+  selectedDate: string;
   loading: boolean;
   onPress: () => void;
 }
 
-function BookButton({ range, selectedCount, loading, onPress }: BookButtonProps) {
+function BookButton({ range, selectedCount, selectedDate, loading, onPress }: BookButtonProps) {
   const scale = useSharedValue(1);
 
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
 
+  const shortDate = formatShortVietnameseDate(selectedDate);
+
   return (
     <View style={styles.bookingBar}>
       {range && (
         <View style={styles.rangeInfo}>
-          <Text style={styles.rangeLabel}>Đã chọn</Text>
+          <Text style={styles.rangeLabel}>
+            {shortDate} · {selectedCount} tiếng
+          </Text>
           <Text style={styles.rangeValue}>{range.start} → {range.end}</Text>
         </View>
       )}
@@ -92,24 +109,42 @@ function BookButton({ range, selectedCount, loading, onPress }: BookButtonProps)
 }
 
 export default function RoomDetailScreen({ navigation, route }: Props) {
-  const { room } = route.params;
+  const { room, initialDate } = route.params;
   const { uid } = useAuth();
+  const { filters, setSelectedDate: setStoreDate } = useAppStore();
+
+  // Ngày mượn phòng được chọn (mặc định lấy từ param, store hoặc ngày hôm nay)
+  const [selectedDate, setSelectedDate] = useState<string>(
+    initialDate || filters.selectedDate || getTodayString()
+  );
+
+  // Mục đích mượn phòng & số người tham gia (nâng tầm trải nghiệm thực tế)
+  const [selectedPurpose, setSelectedPurpose] = useState<string>(BOOKING_PURPOSES[0].id);
+  const [attendeesCount, setAttendeesCount] = useState<number>(
+    Math.min(4, Math.max(1, room.capacity))
+  );
 
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [existingBookings, setExistingBookings] = useState<Booking[]>([]);
   const [booking, setBooking] = useState(false);
-  const today = getTodayString();
 
-  // Real-time bookings cho phòng này hôm nay
+  // Đồng bộ Firestore real-time bookings cho phòng này theo NGÀY ĐƯỢC CHỌN
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
-    getRoomBookingsByDate(room.id, today, (bookings) => {
+    getRoomBookingsByDate(room.id, selectedDate, (bookings) => {
       setExistingBookings(bookings);
     }).then((unsub) => {
       unsubscribe = unsub;
     });
     return () => unsubscribe?.();
-  }, [room.id, today]);
+  }, [room.id, selectedDate]);
+
+  // Xử lý đổi ngày: Reset slots đã chọn của ngày cũ để tránh nhầm lẫn
+  const handleSelectDate = (date: string) => {
+    setSelectedDate(date);
+    setSelectedSlots([]);
+    setStoreDate(date);
+  };
 
   const handleToggleSlot = useCallback((slot: string) => {
     setSelectedSlots((prev) =>
@@ -119,10 +154,11 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
 
   const getTimeRange = () => {
     if (selectedSlots.length === 0) return null;
-    const hours = selectedSlots.map((s) => parseInt(s.split(':')[0])).sort((a, b) => a - b);
+    const hours = selectedSlots.map((s) => parseInt(s.split(':')[0], 10)).sort((a, b) => a - b);
     return {
       start: `${String(hours[0]).padStart(2, '0')}:00`,
       end: `${String(hours[hours.length - 1] + 1).padStart(2, '0')}:00`,
+      durationHours: hours.length,
     };
   };
 
@@ -132,23 +168,27 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
     if (!r) return;
 
     const firstHour = parseInt(r.start.split(':')[0], 10);
-    if (isSlotInPast(firstHour, today)) {
+    if (isSlotInPast(firstHour, selectedDate)) {
       appNotify.error(
         'Khung giờ không hợp lệ',
-        'Khung giờ bạn chọn đã trôi qua trong ngày hôm nay. Vui lòng chọn khung giờ trống tiếp theo.'
+        'Khung giờ bạn chọn đã trôi qua. Vui lòng chọn khung giờ trống tiếp theo.'
       );
       return;
     }
 
+    const purposeObj = BOOKING_PURPOSES.find((p) => p.id === selectedPurpose);
+    const purposeLabel = purposeObj ? purposeObj.label : 'Học nhóm & Đồ án';
+
     appNotify.alert({
       type: 'warning',
-      title: 'Xác nhận đặt phòng',
+      title: 'Xác nhận mượn phòng',
       message: 'Vui lòng kiểm tra lại thông tin mượn phòng học trước khi gửi yêu cầu:',
       details: {
-        roomName: room.name,
-        building: room.building,
-        timeRange: `${r.start} → ${r.end}`,
-        date: today,
+        roomName: `${room.name} (${room.building})`,
+        date: formatVietnameseDate(selectedDate),
+        timeRange: `${r.start} → ${r.end} (${r.durationHours} tiếng)`,
+        purpose: purposeLabel,
+        attendees: `${attendeesCount} sinh viên`,
       },
       buttons: [
         { text: 'Kiểm tra lại', style: 'cancel' },
@@ -163,13 +203,16 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
     if (!range) return;
 
     const firstHour = parseInt(range.start.split(':')[0], 10);
-    if (isSlotInPast(firstHour, today)) {
+    if (isSlotInPast(firstHour, selectedDate)) {
       appNotify.error(
         'Khung giờ không hợp lệ',
         'Khung giờ bạn chọn đã trôi qua. Vui lòng chọn khung giờ trống tiếp theo.'
       );
       return;
     }
+
+    const purposeObj = BOOKING_PURPOSES.find((p) => p.id === selectedPurpose);
+    const purposeLabel = purposeObj ? purposeObj.label : 'Học nhóm & Đồ án';
 
     setBooking(true);
     try {
@@ -178,10 +221,12 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
         roomName: room.name,
         roomBuilding: room.building,
         userId: uid,
-        date: today,
+        date: selectedDate,
         startTime: range.start,
         endTime: range.end,
         status: 'upcoming',
+        purpose: purposeLabel,
+        attendeesCount,
       });
       setSelectedSlots([]);
 
@@ -190,10 +235,10 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
         title: 'Đặt phòng thành công! 🎉',
         message: 'Lịch mượn phòng học đã được cập nhật thành công vào hệ thống VKU.',
         details: {
-          roomName: room.name,
-          building: room.building,
-          timeRange: `${range.start} → ${range.end}`,
-          date: today,
+          roomName: `${room.name} (${room.building})`,
+          date: formatVietnameseDate(selectedDate),
+          timeRange: `${range.start} → ${range.end} (${range.durationHours} tiếng)`,
+          purpose: purposeLabel,
         },
         buttons: [
           {
@@ -230,7 +275,7 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <ScrollView showsVerticalScrollIndicator={false} bounces>
-        {/* Hero */}
+        {/* Hero Image */}
         <View style={styles.heroWrap}>
           <Image
             source={{ uri: room.imageUrl }}
@@ -257,7 +302,7 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
             <StatusBadge status={room.status} />
           </View>
 
-          {/* Stats */}
+          {/* Stats Bar */}
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <Ionicons name="people-outline" size={20} color="#4F46E5" />
@@ -274,22 +319,22 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
             <View style={styles.statItem}>
               <Ionicons name="time-outline" size={20} color="#4F46E5" />
               <Text style={styles.statValue}>3h</Text>
-              <Text style={styles.statLabel}>Tối đa</Text>
+              <Text style={styles.statLabel}>Tối đa / lần</Text>
             </View>
           </View>
 
           {/* Description */}
-          <Text style={styles.sectionTitle}>Mô tả</Text>
+          <Text style={styles.sectionTitle}>Mô tả phòng</Text>
           <Text style={styles.description}>{room.description}</Text>
 
           {/* Amenities */}
-          <Text style={styles.sectionTitle}>Tiện nghi</Text>
+          <Text style={styles.sectionTitle}>Tiện nghi trang bị</Text>
           <View style={styles.amenitiesGrid}>
             {room.amenities.map((a) => (
               <View key={a} style={styles.amenityItem}>
                 <Ionicons
                   name={(AMENITY_INFO[a]?.icon ?? 'checkmark-outline') as any}
-                  size={22}
+                  size={18}
                   color="#4F46E5"
                 />
                 <Text style={styles.amenityLabel}>{AMENITY_INFO[a]?.label ?? a}</Text>
@@ -297,20 +342,115 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
             ))}
           </View>
 
-          {/* Time Slot Picker */}
           {room.status === 'available' && (
             <>
-              <Text style={styles.sectionTitle}>Khung giờ hôm nay ({today})</Text>
-              <TimeSlotPicker
-                selectedSlots={selectedSlots}
-                onToggleSlot={handleToggleSlot}
-                existingBookings={existingBookings}
-                date={today}
-              />
+              {/* 1. Thanh chọn ngày mượn phòng (Lên tới 14 ngày tới) */}
+              <View style={styles.sectionCard}>
+                <DateSelectorStrip
+                  selectedDate={selectedDate}
+                  onSelectDate={handleSelectDate}
+                  label="1. Chọn ngày mượn phòng"
+                />
+              </View>
+
+              {/* 2. Bộ chọn khung giờ */}
+              <View style={styles.sectionCard}>
+                <TimeSlotPicker
+                  selectedSlots={selectedSlots}
+                  onToggleSlot={handleToggleSlot}
+                  existingBookings={existingBookings}
+                  date={selectedDate}
+                />
+              </View>
+
+              {/* 3. Mục đích mượn phòng */}
+              <View style={styles.sectionCard}>
+                <View style={styles.sectionHeaderRow}>
+                  <Ionicons name="bookmark-outline" size={16} color="#4F46E5" />
+                  <Text style={styles.subSectionTitle}>3. Mục đích mượn phòng</Text>
+                </View>
+                <View style={styles.purposeGrid}>
+                  {BOOKING_PURPOSES.map((p) => {
+                    const isSelected = selectedPurpose === p.id;
+                    return (
+                      <Pressable
+                        key={p.id}
+                        onPress={() => setSelectedPurpose(p.id)}
+                        style={[
+                          styles.purposeChip,
+                          isSelected && styles.purposeChipSelected,
+                        ]}
+                      >
+                        <Ionicons
+                          name={p.icon as any}
+                          size={15}
+                          color={isSelected ? '#FFFFFF' : p.color}
+                        />
+                        <Text
+                          style={[
+                            styles.purposeText,
+                            isSelected && styles.purposeTextSelected,
+                          ]}
+                        >
+                          {p.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* 4. Số lượng sinh viên tham gia */}
+              <View style={styles.sectionCard}>
+                <View style={styles.attendeeHeaderRow}>
+                  <View style={styles.sectionHeaderRow}>
+                    <Ionicons name="people-outline" size={16} color="#4F46E5" />
+                    <Text style={styles.subSectionTitle}>4. Số người tham gia</Text>
+                  </View>
+                  <Text style={styles.capacityHint}>Tối đa {room.capacity} bạn</Text>
+                </View>
+
+                <View style={styles.stepperWrap}>
+                  <Pressable
+                    style={[
+                      styles.stepperBtn,
+                      attendeesCount <= 1 && styles.stepperBtnDisabled,
+                    ]}
+                    onPress={() => setAttendeesCount((c) => Math.max(1, c - 1))}
+                    disabled={attendeesCount <= 1}
+                  >
+                    <Ionicons
+                      name="remove"
+                      size={18}
+                      color={attendeesCount <= 1 ? '#CBD5E1' : '#0F172A'}
+                    />
+                  </Pressable>
+
+                  <View style={styles.stepperValueBox}>
+                    <Text style={styles.stepperValueText}>{attendeesCount}</Text>
+                    <Text style={styles.stepperValueUnit}>sinh viên</Text>
+                  </View>
+
+                  <Pressable
+                    style={[
+                      styles.stepperBtn,
+                      attendeesCount >= room.capacity && styles.stepperBtnDisabled,
+                    ]}
+                    onPress={() => setAttendeesCount((c) => Math.min(room.capacity, c + 1))}
+                    disabled={attendeesCount >= room.capacity}
+                  >
+                    <Ionicons
+                      name="add"
+                      size={18}
+                      color={attendeesCount >= room.capacity ? '#CBD5E1' : '#0F172A'}
+                    />
+                  </Pressable>
+                </View>
+              </View>
             </>
           )}
 
-          <View style={{ height: 100 }} />
+          <View style={{ height: 110 }} />
         </View>
       </ScrollView>
 
@@ -319,6 +459,7 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
         <BookButton
           range={range}
           selectedCount={selectedSlots.length}
+          selectedDate={selectedDate}
           loading={booking}
           onPress={promptBookingConfirm}
         />
@@ -330,7 +471,7 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
   heroWrap: { position: 'relative' },
-  heroImage: { width: '100%', height: 260, backgroundColor: '#E2E8F0' },
+  heroImage: { width: '100%', height: 250, backgroundColor: '#E2E8F0' },
   backBtn: {
     position: 'absolute', top: 16, left: 16,
     width: 40, height: 40, borderRadius: 20,
@@ -339,39 +480,139 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15, shadowRadius: 4, elevation: 3,
   },
-  content: { padding: 20, gap: 6 },
-  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 4 },
+  content: { padding: 18, gap: 12 },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   roomName: { fontSize: 22, fontWeight: '800', color: '#0F172A' },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   locationText: { fontSize: 13, color: '#64748B' },
   statsRow: {
     flexDirection: 'row', backgroundColor: '#F8FAFC',
-    borderRadius: 16, padding: 16, marginVertical: 12, alignItems: 'center',
+    borderRadius: 16, padding: 14, alignItems: 'center',
+    borderWidth: 1, borderColor: '#F1F5F9',
   },
-  statItem: { flex: 1, alignItems: 'center', gap: 3 },
-  statValue: { fontSize: 20, fontWeight: '800', color: '#0F172A' },
+  statItem: { flex: 1, alignItems: 'center', gap: 2 },
+  statValue: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
   statLabel: { fontSize: 11, color: '#64748B' },
-  statDivider: { width: 1, height: 40, backgroundColor: '#E2E8F0' },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A', marginTop: 8, marginBottom: 8 },
-  description: { fontSize: 14, color: '#475569', lineHeight: 22 },
-  amenitiesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  statDivider: { width: 1, height: 36, backgroundColor: '#E2E8F0' },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#0F172A', marginTop: 4 },
+  description: { fontSize: 13, color: '#475569', lineHeight: 20 },
+  amenitiesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   amenityItem: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#EEF2FF', paddingHorizontal: 14, paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#EEF2FF', paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 10,
+  },
+  amenityLabel: { fontSize: 12, fontWeight: '600', color: '#3730A3' },
+  sectionCard: {
+    backgroundColor: '#FAFAFA',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    gap: 10,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  subSectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  purposeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  purposeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 12,
   },
-  amenityLabel: { fontSize: 13, fontWeight: '500', color: '#3730A3' },
+  purposeChipSelected: {
+    backgroundColor: '#4F46E5',
+    borderColor: '#4F46E5',
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  purposeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  purposeTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  attendeeHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  capacityHint: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  stepperWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  stepperBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperBtnDisabled: {
+    backgroundColor: '#F8FAFC',
+    opacity: 0.5,
+  },
+  stepperValueBox: {
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  stepperValueText: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  stepperValueUnit: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '500',
+  },
   bookingBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: '#FFFFFF', padding: 16,
+    backgroundColor: '#FFFFFF', padding: 14,
     borderTopWidth: 1, borderTopColor: '#F1F5F9',
     flexDirection: 'row', alignItems: 'center', gap: 12,
     shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.06, shadowRadius: 12, elevation: 8,
+    shadowOpacity: 0.08, shadowRadius: 12, elevation: 8,
   },
   rangeInfo: { flex: 1 },
-  rangeLabel: { fontSize: 11, color: '#94A3B8' },
-  rangeValue: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
+  rangeLabel: { fontSize: 11, color: '#64748B', fontWeight: '600' },
+  rangeValue: { fontSize: 15, fontWeight: '800', color: '#0F172A' },
   bookBtn: {
     backgroundColor: '#4F46E5', borderRadius: 14,
     paddingHorizontal: 20, paddingVertical: 14,
@@ -379,31 +620,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bookBtnDisabled: { backgroundColor: '#C7D2FE' },
-  bookBtnPressed: { opacity: 0.85 },
   bookBtnText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
-  modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    padding: 24, gap: 16,
-  },
-  modalTitle: { fontSize: 20, fontWeight: '800', color: '#0F172A', textAlign: 'center' },
-  modalInfo: {
-    backgroundColor: '#F8FAFC', borderRadius: 16, padding: 16, gap: 6,
-  },
-  modalRoom: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 4 },
-  modalDetail: { fontSize: 14, color: '#475569' },
-  modalActions: { flexDirection: 'row', gap: 12 },
-  cancelBtn: {
-    flex: 1, paddingVertical: 14, borderRadius: 14,
-    backgroundColor: '#F1F5F9', alignItems: 'center',
-  },
-  cancelText: { fontSize: 15, fontWeight: '600', color: '#475569' },
-  confirmBtn: {
-    flex: 2, paddingVertical: 14, borderRadius: 14,
-    backgroundColor: '#4F46E5', alignItems: 'center',
-  },
-  confirmText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
 });
+

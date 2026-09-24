@@ -21,6 +21,7 @@ import { useResponsiveLayout } from '../hooks/useResponsiveLayout';
 import RoomCard from '../components/RoomCard';
 import SearchBar from '../components/SearchBar';
 import FilterChips from '../components/FilterChips';
+import DateSelectorStrip from '../components/DateSelectorStrip';
 import EmptyState from '../components/EmptyState';
 import { RootStackParamList } from '../navigation/AppNavigator';
 
@@ -37,6 +38,7 @@ export default function BrowseRoomsScreen({ navigation }: Props) {
     filters,
     setSearch,
     setBuilding,
+    setSelectedDate,
     toggleAmenity,
     setMinCapacity,
     setStatusFilter,
@@ -102,7 +104,12 @@ export default function BrowseRoomsScreen({ navigation }: Props) {
       room={item}
       index={index}
       cardWidth={columns > 1 ? cardWidth : undefined}
-      onPress={() => navigation.navigate('RoomDetail', { room: item })}
+      onPress={() =>
+        navigation.navigate('RoomDetail', {
+          room: item,
+          initialDate: filters.selectedDate,
+        })
+      }
     />
   );
 
@@ -141,6 +148,15 @@ export default function BrowseRoomsScreen({ navigation }: Props) {
         <View style={styles.searchWrap}>
           <SearchBar value={filters.search} onChangeText={setSearch} />
         </View>
+      </View>
+
+      {/* Chọn ngày mượn phòng (Lên tới 14 ngày tới) */}
+      <View style={{ paddingHorizontal: horizontalPadding, marginBottom: 6 }}>
+        <DateSelectorStrip
+          selectedDate={filters.selectedDate}
+          onSelectDate={setSelectedDate}
+          label="Ngày dự định mượn"
+        />
       </View>
 
       {/* Bộ lọc đa dạng: Khu nhà + Tiện nghi + Sức chứa */}

@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { Booking } from '../types';
-import { isSlotInPast, getLocalDateString } from '../utils/bookingLogic';
+import { isSlotInPast, getLocalDateString, formatVietnameseDate } from '../utils/bookingLogic';
 
 interface Props {
   selectedSlots: string[]; // ["08:00", "09:00"]
@@ -68,25 +68,39 @@ export default function TimeSlotPicker({
     onToggleSlot(slot);
   };
 
-  // Tính endTime từ selectedSlots
-  const getTimeRange = (): string => {
-    if (selectedSlots.length === 0) return '';
+  // Tính endTime và tổng số giờ từ selectedSlots
+  const getTimeRangeInfo = (): { range: string; duration: string } | null => {
+    if (selectedSlots.length === 0) return null;
     const hours = selectedSlots.map((s) => parseInt(s.split(':')[0], 10)).sort((a, b) => a - b);
     const start = `${String(hours[0]).padStart(2, '0')}:00`;
     const end = `${String(hours[hours.length - 1] + 1).padStart(2, '0')}:00`;
-    return `${start} → ${end}`;
+    const count = hours.length;
+    return {
+      range: `${start} → ${end}`,
+      duration: `${count} tiếng`,
+    };
   };
+
+  const rangeInfo = getTimeRangeInfo();
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Chọn khung giờ</Text>
-        {selectedSlots.length > 0 && (
-          <Text style={styles.range}>{getTimeRange()}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Khung giờ mượn phòng</Text>
+          <Text style={styles.dateBadgeText}>{formatVietnameseDate(activeDate)}</Text>
+        </View>
+        {rangeInfo && (
+          <View style={styles.rangeBadge}>
+            <Text style={styles.rangeDuration}>{rangeInfo.duration}</Text>
+            <Text style={styles.range}>{rangeInfo.range}</Text>
+          </View>
         )}
       </View>
 
-      <Text style={styles.hint}>Tối đa {maxSlots} tiếng liên tiếp trong ngày hôm nay</Text>
+      <Text style={styles.hint}>
+        Mượn tối đa {maxSlots} tiếng liên tiếp · Khung giờ xanh là bạn đang chọn
+      </Text>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.slotsScroll}>
         <View style={styles.slotsRow}>
@@ -170,20 +184,53 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
   },
   title: {
     fontSize: 16,
     fontWeight: '700',
     color: '#0F172A',
   },
-  range: {
-    fontSize: 13,
-    fontWeight: '700',
+  dateBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
     color: '#4F46E5',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  rangeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: '#EEF2FF',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  rangeDuration: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#312E81',
+    backgroundColor: '#C7D2FE',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  range: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#4F46E5',
   },
   hint: {
     fontSize: 12,

@@ -17,7 +17,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 // Type definitions
 export type RootStackParamList = {
   BrowseRooms: undefined;
-  RoomDetail: { room: Room };
+  RoomDetail: { room: Room; initialDate?: string };
 };
 
 export type TabParamList = {

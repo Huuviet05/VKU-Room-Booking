@@ -3,11 +3,13 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FilterState, Amenity, RoomStatus, RoomType, CapacityRange } from '../types';
+import { getLocalDateString } from '../utils/bookingLogic';
 
 interface AppStore {
   filters: FilterState;
   setSearch: (search: string) => void;
   setBuilding: (building: string) => void;
+  setSelectedDate: (date: string) => void;
   setRoomType: (roomType: RoomType) => void;
   setCapacityRange: (capacityRange: CapacityRange) => void;
   toggleAmenity: (amenity: Amenity) => void;
@@ -19,6 +21,7 @@ interface AppStore {
 const defaultFilters: FilterState = {
   search: '',
   building: 'all',
+  selectedDate: getLocalDateString(),
   roomType: 'all',
   capacityRange: 'all',
   amenities: [],
@@ -37,6 +40,9 @@ export const useAppStore = create<AppStore>()(
 
       setBuilding: (building) =>
         set((state) => ({ filters: { ...state.filters, building } })),
+
+      setSelectedDate: (selectedDate) =>
+        set((state) => ({ filters: { ...state.filters, selectedDate } })),
 
       setRoomType: (roomType) =>
         set((state) => ({ filters: { ...state.filters, roomType } })),

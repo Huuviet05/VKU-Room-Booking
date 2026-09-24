@@ -28,6 +28,7 @@ import { appNotify } from '../store/useNotificationStore';
 import {
   getBookingEffectiveStatus,
   canCancelBooking,
+  formatVietnameseDate,
 } from '../utils/bookingLogic';
 
 type FilterType = 'all' | 'upcoming' | 'history';
@@ -175,12 +176,29 @@ function BookingCard({
               </Text>
 
               <View style={styles.bookingMeta}>
-                <Ionicons name="calendar-outline" size={12} color="#64748B" />
-                <Text style={styles.bookingMetaText}>{booking.date}</Text>
+                <Ionicons name="calendar-outline" size={12} color="#4F46E5" />
+                <Text style={styles.bookingDateText}>{formatVietnameseDate(booking.date)}</Text>
+                <Text style={styles.metaSeparator}>·</Text>
                 <Ionicons name="time-outline" size={12} color="#64748B" />
                 <Text style={styles.bookingMetaText}>
                   {booking.startTime} → {booking.endTime}
                 </Text>
+              </View>
+
+              {/* Tag mục đích & số người tham gia */}
+              <View style={styles.bookingTagsRow}>
+                {Boolean(booking.purpose) && (
+                  <View style={styles.purposeTag}>
+                    <Ionicons name="bookmark-outline" size={10} color="#4F46E5" />
+                    <Text style={styles.purposeTagText} numberOfLines={1}>{booking.purpose}</Text>
+                  </View>
+                )}
+                {Boolean(booking.attendeesCount) && (
+                  <View style={styles.attendeesTag}>
+                    <Ionicons name="people-outline" size={10} color="#059669" />
+                    <Text style={styles.attendeesTagText}>{booking.attendeesCount} bạn</Text>
+                  </View>
+                )}
               </View>
             </View>
           </View>
@@ -510,8 +528,50 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   bookingBuilding: { fontSize: 12, color: '#64748B' },
-  bookingMeta: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 2 },
+  bookingMeta: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 3 },
+  bookingDateText: { fontSize: 12, fontWeight: '700', color: '#4F46E5' },
+  metaSeparator: { fontSize: 12, color: '#CBD5E1', fontWeight: '800' },
   bookingMetaText: { fontSize: 12, color: '#64748B' },
+  bookingTagsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+    marginTop: 4,
+  },
+  purposeTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  purposeTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#4338CA',
+    maxWidth: 130,
+  },
+  attendeesTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  attendeesTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#047857',
+  },
   bookingRight: {
     paddingLeft: 8,
     alignItems: 'flex-end',

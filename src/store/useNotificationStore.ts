@@ -15,6 +15,8 @@ export interface AlertDetails {
   timeRange?: string;
   date?: string;
   capacity?: number;
+  purpose?: string;
+  attendees?: string;
 }
 
 export interface AlertConfig {
