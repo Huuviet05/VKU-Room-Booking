@@ -3,7 +3,27 @@
 export type RoomStatus = 'available' | 'occupied' | 'maintenance';
 export type BookingStatus = 'upcoming' | 'in_progress' | 'completed' | 'cancelled';
 
-export type Amenity = 'projector' | 'ac' | 'whiteboard' | 'printer' | 'computer' | 'camera';
+export type Amenity =
+  | 'projector'
+  | 'ac'
+  | 'whiteboard'
+  | 'printer'
+  | 'computer'
+  | 'camera'
+  | 'sound_system'
+  | 'smart_board'
+  | 'wifi6'
+  | 'vr_headset';
+
+export type RoomType =
+  | 'all'
+  | 'lab'          // Phòng máy tính & Lab chuyên sâu
+  | 'lecture'      // Giảng đường & Hội trường lớn
+  | 'seminar'      // Phòng Seminar & Báo cáo đồ án
+  | 'discussion'   // Phòng thảo luận nhóm & Không gian mở
+  | 'studio';      // Media, Podcast & Studio công nghệ
+
+export type CapacityRange = 'all' | 'small' | 'medium' | 'large';
 
 export interface Room {
   id: string;
@@ -11,6 +31,7 @@ export interface Room {
   building: string;
   floor: number;
   capacity: number;
+  roomType?: RoomType;
   amenities: Amenity[];
   imageUrl: string;
   blurHash: string;
@@ -29,7 +50,7 @@ export interface Booking {
   roomName: string;
   roomBuilding: string;
   userId: string;
-  date: string;       // "2026-09-19"
+  date: string;       // "2026-09-24"
   startTime: string;  // "09:00"
   endTime: string;    // "11:00"
   status: BookingStatus;
@@ -38,6 +59,9 @@ export interface Booking {
 
 export interface FilterState {
   search: string;
+  building: string;               // 'all' | 'Tòa A' | 'Tòa V' | 'Thư viện' | 'Khu K'
+  roomType: RoomType;             // 'all' | 'lab' | 'lecture' | 'seminar' | 'discussion' | 'studio'
+  capacityRange: CapacityRange;   // 'all' | 'small' (<25) | 'medium' (25-50) | 'large' (>50)
   amenities: Amenity[];
   minCapacity: number;
   statusFilter: RoomStatus | 'all';

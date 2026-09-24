@@ -2,11 +2,14 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { FilterState, Amenity, RoomStatus } from '../types';
+import { FilterState, Amenity, RoomStatus, RoomType, CapacityRange } from '../types';
 
 interface AppStore {
   filters: FilterState;
   setSearch: (search: string) => void;
+  setBuilding: (building: string) => void;
+  setRoomType: (roomType: RoomType) => void;
+  setCapacityRange: (capacityRange: CapacityRange) => void;
   toggleAmenity: (amenity: Amenity) => void;
   setMinCapacity: (capacity: number) => void;
   setStatusFilter: (status: RoomStatus | 'all') => void;
@@ -15,13 +18,15 @@ interface AppStore {
 
 const defaultFilters: FilterState = {
   search: '',
+  building: 'all',
+  roomType: 'all',
+  capacityRange: 'all',
   amenities: [],
   minCapacity: 0,
   statusFilter: 'all',
 };
 
-// Zustand store với persist middleware: Lưu bộ lọc vào AsyncStorage
-// Khi tắt app và mở lại, bộ lọc sẽ được khôi phục tự động
+// Zustand store với persist middleware: Lưu các tùy chọn lọc vào AsyncStorage
 export const useAppStore = create<AppStore>()(
   persist(
     (set) => ({
@@ -29,6 +34,15 @@ export const useAppStore = create<AppStore>()(
 
       setSearch: (search) =>
         set((state) => ({ filters: { ...state.filters, search } })),
+
+      setBuilding: (building) =>
+        set((state) => ({ filters: { ...state.filters, building } })),
+
+      setRoomType: (roomType) =>
+        set((state) => ({ filters: { ...state.filters, roomType } })),
+
+      setCapacityRange: (capacityRange) =>
+        set((state) => ({ filters: { ...state.filters, capacityRange } })),
 
       toggleAmenity: (amenity) =>
         set((state) => {
@@ -48,13 +62,12 @@ export const useAppStore = create<AppStore>()(
       resetFilters: () => set({ filters: defaultFilters }),
     }),
     {
-      name: 'vku-filter-storage', // Tên key trong AsyncStorage
+      name: 'vku-filter-storage-v2',
       storage: createJSONStorage(() => AsyncStorage),
-      // Chỉ persist filters (không persist search để tránh nhầm lẫn)
       partialize: (state) => ({
         filters: {
           ...state.filters,
-          search: '', // Reset search mỗi lần mở app
+          search: '', // Luôn reset từ khóa tìm kiếm khi mở lại app
         },
       }),
     }

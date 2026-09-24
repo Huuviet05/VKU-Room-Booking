@@ -18,9 +18,10 @@ const ROOMS_COLLECTION = 'rooms';
 export async function seedRoomsIfEmpty(): Promise<void> {
   try {
     const snapshot = await getDocs(collection(db, ROOMS_COLLECTION));
-    if (!snapshot.empty) return; // Đã có dữ liệu rồi
+    // Nếu đã đủ số lượng phòng mới thì không cần seed lại
+    if (!snapshot.empty && snapshot.size >= MOCK_ROOMS.length) return;
 
-    console.log('🌱 Seeding rooms into Firestore...');
+    console.log('🌱 Syncing/seeding rich room data into Firestore...');
     const promises = MOCK_ROOMS.map((room, index) => {
       const id = `room_${String(index + 1).padStart(3, '0')}`;
       return setDoc(doc(db, ROOMS_COLLECTION, id), {
